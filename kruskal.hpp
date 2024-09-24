@@ -19,6 +19,10 @@ public:
             rank[i] = 1;
         }
     }
+    ~DSU(){
+    	delete [] parent;
+    	delete [] rank;
+    }
 
     // Find function
     int find(int i)

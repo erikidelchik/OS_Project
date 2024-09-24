@@ -201,7 +201,8 @@ void handleClient_LF(int clientFd){
 		    
 		    int i = action.at(comma-1)-'0';
 		    int j = action.at(comma+1)-'0';
-		    int w = action.at(comma+3)-'0';
+		    string weight = action.substr(comma+3);
+    	    	    int w = stoi(weight);
 		    
 		    g.addEdge(i,j,w);
 		}
@@ -305,7 +306,8 @@ void* handleClient_pipeline(int clientFd){
 		    
 		    int i = action.at(comma-1)-'0';
 		    int j = action.at(comma+1)-'0';
-		    int w = action.at(comma+3)-'0';
+		    string weight = action.substr(comma+3);
+    	    	    int w = stoi(weight);
 		    
 		    g.addEdge(i,j,w);
 		}
@@ -335,9 +337,16 @@ void* handleClient_pipeline(int clientFd){
     
 }
 
+void signalHandler(int signum) { 
+    exit(signum);
+}
+
 
 
 int main(){
+
+    signal(SIGINT, signalHandler);
+    
     int serverFd = -1;
     struct sockaddr_in address;
     bool lf = true;
