@@ -7,28 +7,42 @@
 
 using namespace std;
 
+// Helper DFS function to find the path from u to v
+bool dfs(const vector<vector<int>>& mst, int u, int v, int& weight, vector<bool>& visited) {
 
-//return the weight of the path from u to v, or -1 if there isn't one
-int dfs(const vector<vector<int>>& mst, int u, int v,int weight, vector<bool>& visited) {
     visited[u] = true;
 
     // If we reach the destination, return true
-    if (u == v) return weight;
+    if (u == v) return true;
 
     // Explore the neighbors
-    for (int i=0;i<mst.size();i++) {
-        if (!visited[i] && mst[u][i]) {
-            return dfs(mst, i, v,weight+mst[u][i], visited);
+    for (int i = 0; i < mst.size(); i++) {
+        if (mst[u][i] && !visited[i]) {
+            weight += mst[u][i];
+            if (dfs(mst, i, v, weight, visited)) {
+                return true;
+            }
+            // Backtrack if the path doesn't lead to the destination
+            weight -= mst[u][i]; 
         }
     }
 
-    return INT_MAX;
+    visited[u] = false;
+    return false;
 }
 
-int distance(const vector<vector<int>>& mst,int src,int dest){
+int distance(const vector<vector<int>>& mst, int src, int dest) {
     vector<bool> visited(mst.size(), false);
-    return dfs(mst,src,dest,0,visited);
+    int weight = 0;
+    
+    if (dfs(mst, src, dest, weight, visited)) {
+        return weight;
+    } 
+    else {
+        return INT_MAX;
+    }
 }
+
 
 void calculateTotalWeight(const vector<vector<int>> &mst,int fd = -1) {
     int weight = 0;
@@ -104,13 +118,23 @@ void calculateAverageDistance(const vector<vector<int>> &mst,int fd=-1) {
 }
 
 void calculateShortestDistance(const vector<vector<int>> &mst,int u,int v,int fd=-1) {
-    if(u<0 || v<0 || u>=mst.size() || v>= mst.size()) {
-        cout << "invalid vertices" << endl;
+    if((u<0 || v<0 || u>=mst.size() || v>= mst.size()) && fd!=-1) {
+    	char buffer[1024];
+        string str = "invalid verices\n";
+        strcpy(buffer,str.c_str());
+	buffer[str.size()]='\0';
+	write(fd,buffer,strlen(buffer));
         return;
     }
     int d = distance(mst,u,v);
-    if(d==INT_MAX){
-        cout<<"no path between "<<u<<" and "<<v<<endl;
+    
+    //should not happen because its connected mst
+    if(d==INT_MAX && fd!=-1){
+    	char buffer[1024];
+        string str = "no path between "+to_string(u)+" and "+ to_string(v)+"\n";
+        strcpy(buffer,str.c_str());
+	buffer[str.size()]='\0';
+	write(fd,buffer,strlen(buffer));
         return;
     }
     

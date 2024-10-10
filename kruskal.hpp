@@ -69,7 +69,7 @@ vector<vector<int>> calculateKruskalMST(Graph &g){
 
 
 
-    vector<vector<int>> mst(edgelist.size(),vector<int>(edgelist.size(),0));
+    vector<vector<int>> mst(size,vector<int>(size,0));
 
     // Sort all edges
     sort(edgelist.begin(), edgelist.end());

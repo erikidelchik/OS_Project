@@ -14,6 +14,8 @@
 #include <thread>
 #include <string>
 #include <condition_variable>
+#include <functional>
+
 
 using namespace std;
 
@@ -21,6 +23,21 @@ void handleClient_LF(int);
 
 Graph g;
 mutex mtx;
+
+mutex stage1_mtx;
+mutex stage2_mtx;
+mutex stage3_mtx;
+mutex stage4_mtx;
+
+condition_variable stage1_cv;
+condition_variable stage2_cv;
+condition_variable stage3_cv;
+condition_variable stage4_cv;
+
+queue<function<void()>> stage1_q;
+queue<function<void()>> stage2_q;
+queue<function<void()>> stage3_q;
+queue<function<void()>> stage4_q;
 
 queue<int> clientQueue;
 condition_variable cond;
@@ -102,13 +119,13 @@ void threadWork(int thread_id) {
         int clientFd = -1;
 
         {
-            std::unique_lock<std::mutex> lock(mtx);
+            unique_lock<mutex> lock(mtx);
 
             // wait until notify_all() is called. 
             // all the created threads wait here.
             // the thread that has the mutex (only one can have it at a time) will continue if the condition is true
             cond.wait(lock, [] { return !clientQueue.empty(); });
-		
+
 	    //cout<<"thread "<<thread_id<<" became the leader\n";
 	    
             // pick up the next client from the queue
@@ -232,6 +249,79 @@ void handleClient_LF(int clientFd){
     
 }
 
+class Stages{
+	public:
+	
+	vector<vector<int>> mst;
+	int clientFd;
+	int x;
+	int y;
+
+	
+	Stages(vector<vector<int>> mst,int clientFd,int x,int y): mst(mst),clientFd(clientFd),x(x),y(y) {}
+	
+	void stage1(){
+	    unique_lock<mutex> lock(stage1_mtx);
+	    stage1_cv.wait(lock, [] {return !stage1_q.empty(); });
+	    
+	    function<void()> task1 = stage1_q.front();
+	    
+	    stage1_q.pop();
+	    
+	    stage2_q.push([this] {calculateLongestDistance(this->mst, this->clientFd);} );
+	    
+	    task1();
+	    
+	    stage2_cv.notify_one();
+	}
+
+	void stage2(){
+	    unique_lock<mutex> lock(stage2_mtx);
+	    stage2_cv.wait(lock, [] {return !stage2_q.empty(); });
+	    
+	    function<void()> task2 = stage2_q.front();
+	    
+	    stage2_q.pop();
+	    
+	    stage3_q.push([this] {calculateAverageDistance(this->mst, this->clientFd);} );
+	    
+	    task2();
+	    
+	    stage3_cv.notify_one();
+	}
+
+	void stage3(){
+	    unique_lock<mutex> lock(stage3_mtx);
+	    stage3_cv.wait(lock, [] {return !stage3_q.empty(); });
+	    
+	    function<void()> task3 = stage3_q.front();
+	    
+	    stage3_q.pop();
+	    
+	    stage4_q.push([this] {calculateShortestDistance(this->mst, this->x, this->y, this->clientFd);} );
+	    
+	    task3();
+	    
+	    stage4_cv.notify_one();
+	}
+
+	void stage4(){
+	    
+	    unique_lock<mutex> lock(stage4_mtx);
+	    stage4_cv.wait(lock, [] {return !stage4_q.empty(); });
+	    
+	    function<void()> task4 = stage4_q.front();
+	    
+	    stage4_q.pop();
+	    
+	    task4();
+	    
+ 
+	}
+
+};
+
+
 void* handleClient_pipeline(int clientFd){
     char buffer[1024];
     string action;
@@ -283,10 +373,18 @@ void* handleClient_pipeline(int clientFd){
 		    	int v2 = action.at(comma+1)-'0';
 		    	
 		    	// creating threads to perform the calculations
-			thread t1(calculateTotalWeight, cref(mst), clientFd);
-		        thread t2(calculateLongestDistance, cref(mst), clientFd);
-		        thread t3(calculateAverageDistance, cref(mst), clientFd);
-		        thread t4(calculateShortestDistance, cref(mst), v1, v2, clientFd);
+			//thread t1(calculateTotalWeight, cref(mst), clientFd);
+		        //thread t2(calculateLongestDistance, cref(mst), clientFd);
+		        //thread t3(calculateAverageDistance, cref(mst), clientFd);
+		        //thread t4(calculateShortestDistance, cref(mst), v1, v2, clientFd);
+		        
+		         auto stages = std::make_shared<Stages>(mst, clientFd, v1, v2);
+
+                    	// Start threads for each stage
+                    	std::thread t1(&Stages::stage1, stages);
+                    	std::thread t2(&Stages::stage2, stages);
+                   	std::thread t3(&Stages::stage3, stages);
+                   	std::thread t4(&Stages::stage4, stages);
 		        
 
 		        // detaching the threads so they run independently
@@ -294,6 +392,10 @@ void* handleClient_pipeline(int clientFd){
 		        t2.detach();
 		        t3.detach();
 		        t4.detach();
+		        
+		        //pushing the first task to begin the pipeline calculation 
+		        stage1_q.push([stages] () {calculateTotalWeight(stages->mst, stages->clientFd);} );
+		        stage1_cv.notify_one();
 		        
 		    }
 		}
@@ -349,7 +451,7 @@ int main(){
     
     int serverFd = -1;
     struct sockaddr_in address;
-    bool lf = true;
+    bool lf = false;
     
     vector<thread> threadpool;
     
@@ -368,6 +470,7 @@ int main(){
     }
         
     else cout<<"server uses the pipeline pattern\n";
+    
     
     start_server(serverFd, address);
     
