@@ -31,6 +31,14 @@ public:
             adjMat.push_back(other[i]);
         }
     }
+    
+    Graph& operator=(Graph &other){
+    	adjMat.clear();
+    	adjMat = other.getGraph();
+    	
+    	return *this;
+    
+    }
 
     void addEdge(int v1,int v2,int w){
         if(!adjMat[v1][v2]){

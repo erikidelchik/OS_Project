@@ -23,6 +23,7 @@ void handleClient_LF(int);
 
 Graph g;
 mutex mtx;
+mutex graph_mtx;
 
 mutex stage1_mtx;
 mutex stage2_mtx;
@@ -43,6 +44,8 @@ queue<int> clientQueue;
 condition_variable cond;
 
 void create_graph(int n,int m,int fd=-1){
+
+    lock_guard<mutex> lock(graph_mtx);
 
     char buffer[1024];
 
@@ -134,11 +137,6 @@ void threadWork(int thread_id) {
                 clientQueue.pop();
             }
 
-
-            // notify followers if there are more clients pending
-            if (!clientQueue.empty()) {
-                cond.notify_all(); 
-            }
         }
 
         // handle the client connection
@@ -315,6 +313,7 @@ class Stages{
 	    stage4_q.pop();
 	    
 	    task4();
+
 	    
  
 	}
@@ -378,24 +377,23 @@ void* handleClient_pipeline(int clientFd){
 		        //thread t3(calculateAverageDistance, cref(mst), clientFd);
 		        //thread t4(calculateShortestDistance, cref(mst), v1, v2, clientFd);
 		        
-		         auto stages = std::make_shared<Stages>(mst, clientFd, v1, v2);
+		        auto stages = make_shared<Stages>(mst, clientFd, v1, v2); //shared pointer to the object
+		        
 
                     	// Start threads for each stage
-                    	std::thread t1(&Stages::stage1, stages);
-                    	std::thread t2(&Stages::stage2, stages);
-                   	std::thread t3(&Stages::stage3, stages);
-                   	std::thread t4(&Stages::stage4, stages);
-		        
-
-		        // detaching the threads so they run independently
-		        t1.detach();
-		        t2.detach();
-		        t3.detach();
-		        t4.detach();
-		        
-		        //pushing the first task to begin the pipeline calculation 
+                    	thread t1(&Stages::stage1, stages);
+                    	thread t2(&Stages::stage2, stages);
+                   	thread t3(&Stages::stage3, stages);
+                   	thread t4(&Stages::stage4, stages);        
+                   	
+                   	//pushing the first task to begin the pipeline calculation 
 		        stage1_q.push([stages] () {calculateTotalWeight(stages->mst, stages->clientFd);} );
 		        stage1_cv.notify_one();
+		        
+		        t1.join();
+			t2.join();
+			t3.join();
+			t4.join();
 		        
 		    }
 		}
@@ -440,6 +438,7 @@ void* handleClient_pipeline(int clientFd){
 }
 
 void signalHandler(int signum) { 
+    killpg(0, SIGTERM);
     exit(signum);
 }
 
