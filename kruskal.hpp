@@ -1,27 +1,26 @@
-#include <bits/stdc++.h>
 #include "Graph.hpp"
+#include <iostream>
+#include <vector>
+#include <algorithm>
+
 using namespace std;
 
 // DSU data structure
 // path compression + rank by union
 class DSU {
-    int* parent;
-    int* rank;
+    vector<int> parent;
+    vector<int> rank;
 
 public:
     DSU(int n)
     {
-        parent = new int[n];
-        rank = new int[n];
+        parent.resize(n);
+        rank.resize(n);
 
         for (int i = 0; i < n; i++) {
             parent[i] = -1;
             rank[i] = 1;
         }
-    }
-    ~DSU(){
-    	delete [] parent;
-    	delete [] rank;
     }
 
     // Find function

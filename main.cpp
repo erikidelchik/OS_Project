@@ -12,9 +12,10 @@
 #include <sys/select.h>
 #include <mutex>
 #include <thread>
-#include <string>
 #include <condition_variable>
 #include <functional>
+#include <queue>
+#include <csignal>
 
 
 using namespace std;
@@ -126,7 +127,7 @@ void threadWork(int thread_id) {
 
             // wait until notify_all() is called. 
             // all the created threads wait here.
-            // the thread that has the mutex (only one can have it at a time) will continue if the condition is true
+            // the thread that has the lock (only one can have it at a time) will continue if the condition is true
             cond.wait(lock, [] { return !clientQueue.empty(); });
 
 	    //cout<<"thread "<<thread_id<<" became the leader\n";
@@ -438,7 +439,6 @@ void* handleClient_pipeline(int clientFd){
 }
 
 void signalHandler(int signum) { 
-    killpg(0, SIGTERM);
     exit(signum);
 }
 
